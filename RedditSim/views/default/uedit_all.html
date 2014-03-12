@@ -1,0 +1,33 @@
+{{extend 'layout.html'}}
+
+<style>
+	li{ margin: 0 0 .01em 0; }
+	h3,h4,button{display:inline;}
+	hr{height=10px;}
+</style>
+<ol>
+{{for some in form:}}
+{{if some.email!="admin@gmail.com":}}
+	<li>	
+<h3 style="color:purple;">
+	{{=some.first_name}}
+	{{=some.last_name}}		
+</h3>
+&nbsp;
+</br>
+{{allposts=db(db.posts.user_id==some.id).select()}}
+<h4>Email:</h4> {{=some.email}}
+&nbsp;
+(Total Posts: {{=len(allposts)}})
+
+</br>
+<div style="text-align:right;">
+<button onclick="document.location='{{=URL(r=request,f='deluser',args=some.id)}}';">Delete This User</button>
+</div>
+</hr>
+</li>
+{{pass}}
+{{pass}}
+</br>
+</ol>
+

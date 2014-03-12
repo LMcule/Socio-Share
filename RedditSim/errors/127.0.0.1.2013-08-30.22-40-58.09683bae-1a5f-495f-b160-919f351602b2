@@ -1,0 +1,593 @@
+(dp1
+S'output'
+p2
+S"<type 'exceptions.ValueError'> unknown url type: asdsad"
+p3
+sS'layer'
+p4
+S'/home/kira111/web2py/applications/RedditSim/controllers/default.py'
+p5
+sS'code'
+p6
+S'# -*- coding: utf-8 -*-\n# this file is released under public domain and you can use without limitations\n\n#########################################################################\n## This is a sample controller\n## - index is the default action of any application\n## - user is required for authentication and authorization\n## - download is for downloading files uploaded in the db (does streaming)\n## - call exposes all registered services (none by default)\n#########################################################################\n\n\ndef index():\n    """\n    example action using the internationalization operator T and flash\n    rendered by views/default/index.html or views/generic.html\n\n    if you need a simple wiki simple replace the two lines below with:\n    return auth.wiki()\n    """\n   # response.flash = T("Welcome to RedditSIM")\n    return dict(message=\'\')\n\n\ndef user():\n    """\n    exposes:\n    http://..../[app]/default/user/login\n    http://..../[app]/default/user/logout\n    http://..../[app]/default/user/register\n    http://..../[app]/default/user/profile\n    http://..../[app]/default/user/retrieve_password\n    http://..../[app]/default/user/change_password\n    http://..../[app]/default/user/manage_users (requires membership in \n    use @auth.requires_login()\n        @auth.requires_membership(\'group name\')\n        @auth.requires_permission(\'read\',\'table name\',record_id)\n    to decorate functions that need access control\n    """\n    return dict(form=auth())\n\n@cache.action()\ndef download():\n    """\n    allows downloading of uploaded files\n    http://..../[app]/default/download/[filename]\n    """\n    return response.download(request, db)\n\n\ndef call():\n    """\n    exposes services. for example:\n    http://..../[app]/default/call/jsonrpc\n    decorate with @services.jsonrpc the functions to expose\n    supports xml, json, xmlrpc, jsonrpc, amfrpc, rss, csv\n    """\n    return service()\n\n\n@auth.requires_signature()\ndef data():\n    """\n    http://..../[app]/default/data/tables\n    http://..../[app]/default/data/create/[table]\n    http://..../[app]/default/data/read/[table]/[id]\n    http://..../[app]/default/data/update/[table]/[id]\n    http://..../[app]/default/data/delete/[table]/[id]\n    http://..../[app]/default/data/select/[table]\n    http://..../[app]/default/data/search/[table]\n    but URLs must be signed, i.e. linked with\n      A(\'table\',_href=URL(\'data/tables\',user_signature=True))\n    or with the signed load operator\n      LOAD(\'default\',\'data.load\',args=\'tables\',ajax=True,user_signature=True)\n    """\n    return dict(form=crud())\ndef login():\n\treturn dict(form=auth.login())\n\ndef index():\n\tform=db().select(db.posts.ALL,orderby=~db.posts.votes)\n\treturn dict(form=form)\nfrom urllib2 import Request, urlopen, URLError\n@auth.requires_login()\ndef posts():\n\tform=SQLFORM(db.posts)\n\t\n\tif form.process().accepted:\n\t\t\treq = Request(form.vars.url)\n\t\t\ttry:\n\t\t\t\t    response = urlopen(req)\n\t\t\texcept URLError, e:\n\t\t\t\tpost=db(db.posts.id>0).select().last()\n\t\t\t\tdb(db.posts.id==post.id).delete()\n\t\t\t\tresponse.flash = \'INCORRECT URL\'\n\t\t\telse:\n\t\t\t\tsome=db(db.posts.id>0).select().last()\n\t\t\t\tsome.user_id=auth.user.id\n\t\t\t\tsome.update_record()\n\t\t\t\tsession.flash = \'POST SUBMITTED\'\n\t\t\t\tredirect(URL(\'index\'))\n\n\treturn dict(form=form)\n\ndef show_cat():\n\tform=db().select(db.posts.ALL)\n\treturn dict(form=form)\n\ndef post_bycat():\n\t#print request.args(0,cast=str)\n\tform=db(db.posts.category==request.args(0,cast=str)).select(orderby=~db.posts.votes)\n\treturn dict(form=form)\ndef voting():\n\n\tflag=False\n\tans=request.args(1,cast=int)\n\t#print request.args(0),request.args(1)\n\tpost=db(db.posts.id==request.args(0,cast=str)).select().first()\n\tuserm=db((db.liked.user_id==auth.user.id) &(db.liked.post_id==post.id)).select()\n\tif(len(userm)==0):\n\t\tflag=True\n\tif(len(userm)==1):\n\t\tif ans==1 and userm[0].response==False:\n\t\t\tflag=False\n\t\t\tpost.votes += 8\n\t\t\tpost.update_record()\n\t\t\tuserm[0].response=True\n\t\t\tuserm[0].update_record()\n\t\t\tsession.flash = \'Response Changed\'\n\t\t\tredirect(URL(\'post_bycat\',args=post.category))\n\t\n\t\tif ans==-1 and userm[0].response==True:\n\t\t\tflag=False\n\t\t\tpost.votes -= 8\n\t\t\tpost.update_record()\n\t\t\tuserm[0].response=False\n\t\t\tuserm[0].update_record()\n\t\t\tsession.flash = \'Response Changed\'\n\t\t\tredirect(URL(\'post_bycat\',args=post.category))\n\tif flag:\n\t\tif(ans==1):\n\t\t\tpost.votes += 5\n\t\t\tdb.liked.insert(user_id=auth.user.id,post_id=post.id,response=True)\n\t\telif(ans==-1):\n\t\t\tpost.votes -= 3\n\t\t\tdb.liked.insert(user_id=auth.user.id,post_id=post.id,response=False)\n\t\t\n\t\tsession.flash = \'Response Recorded\'\n\t\tpost.update_record()\n\t\tredirect(URL(\'post_bycat\',args=post.category))\n\telse:\n\t\tsession.flash = \'Already responded to post\'\n\t\tredirect(URL(\'post_bycat\',args=post.category))\n\n\treturn dict()\ndef myposts():\n\tform=db(db.posts.user_id==auth.user.id).select()\n\n\treturn dict(form=form)\n\ndef delp():\n\tdb(db.posts.id==request.args(0,cast=str)).delete()\n\tsession.flash = \'Post Deleted\'\n\tredirect(URL(\'myposts\'))\n\t\n\treturn dict()\n\ndef editp():\n\tdb.posts.url.writable=False\n\tpost=db(db.posts.id==request.args(0,cast=str)).select().first()\n\tcaty=db(db.caty.id>0).select()\t\n\tform = SQLFORM.factory(\n\t\t\t\tField(\'title\',type=\'string\',length=128,default=post.title),\n\t\t\t\tField(\'url\',writable=False,default=post.url),\n\t\t\t\tField(\'category\',length=128,default=post.category,requires=IS_IN_DB(db,\'caty.id\',\'caty.category_name\'))\n\t)\n\tif form.process().accepted:\n\t\ta=request.vars.category.split()\n\t\tif (len(a))>1:\n\t\t\tsession.flash = \'Category can only be one word!\'\n\t\telse:\n\t\t\tdb(db.posts.id==post.id).update(title=form.vars.title,category=form.vars.category)\n\t\t\tsession.flash = \'Changes Complete\'\n\n\t\tredirect(URL(\'editp\',args=post.id))\n\n\treturn dict(form=form,some=post)\nimport datetime\ndef post_comet():\n\tsome=db(db.posts.id==request.args(0,cast=str)).select().first()\n\tform = SQLFORM.factory(\n\t\t\t\tField(\'post_comment\',type=\'text\',default=\'\'))\n\tif form.process().accepted:\n\t\t\tdb.comments.insert(user_id=auth.user.id,post_id=some.id,comet=form.vars.post_comment,time_posted=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))\n\t\t\tsession.flash = \'Comment Posted\'\n\t\t\tredirect(URL(post_comet,args=some.id))\n\treturn dict(some=some,form=form)\ndef add_caty():\n\t\n\tform = SQLFORM(db.caty)\n\n\tif form.process().accepted:\n\t\ta=form.vars.category_name.split()\n\t\tif (len(a))>1:\n\t\t\tdelu=db(db.caty.id>0).select().last()\n\t\t\tdb(db.caty.id==delu.id).delete()\t\n\t\t\tresponse.flash = \'Category can only be one word!\'\n\t\telse:\n\t\t\tresponse.flash = \'Category Added\'\n\n\n\treturn dict(form=form)\ndef admin_stuff():\n\treturn dict()\ndef uedit_all():\n\t\n\talluser=db(db.auth_user.id>0).select(orderby=db.auth_user.first_name)\n\treturn dict(form=alluser)\ndef pedit_all():\n\t\n\tallpost=db(db.posts.id>0).select(orderby=~db.posts.votes)\n\treturn dict(form=allpost)\n\ndef delpost():\n\tdb(db.posts.id==request.args(0,cast=int)).delete()\n\tsession.flash=\'Post Deleted\'\n\tredirect(URL(pedit_all))\ndef deluser():\n\tdb(db.auth_user.id==request.args(0,cast=int)).delete()\n\tsession.flash=\'User Account,Posts,Comments Deleted\'\n\tredirect(URL(uedit_all))\n\t\n\n\nresponse._vars=response._caller(posts)\n'
+p7
+sS'snapshot'
+p8
+(dp9
+S'exception'
+p10
+(dp11
+S'__hash__'
+p12
+S"<method-wrapper '__hash__' of exceptions.ValueError object>"
+p13
+sS'__setattr__'
+p14
+S"<method-wrapper '__setattr__' of exceptions.ValueError object>"
+p15
+sS'__reduce_ex__'
+p16
+S'<built-in method __reduce_ex__ of exceptions.ValueError object>'
+p17
+sS'__getslice__'
+p18
+S"<method-wrapper '__getslice__' of exceptions.ValueError object>"
+p19
+sS'__getitem__'
+p20
+S"<method-wrapper '__getitem__' of exceptions.ValueError object>"
+p21
+sS'__setstate__'
+p22
+S'<built-in method __setstate__ of exceptions.ValueError object>'
+p23
+sS'__reduce__'
+p24
+S'<built-in method __reduce__ of exceptions.ValueError object>'
+p25
+sS'__str__'
+p26
+S"<method-wrapper '__str__' of exceptions.ValueError object>"
+p27
+sS'__format__'
+p28
+S'<built-in method __format__ of exceptions.ValueError object>'
+p29
+sS'__getattribute__'
+p30
+S"<method-wrapper '__getattribute__' of exceptions.ValueError object>"
+p31
+sS'__class__'
+p32
+S"<type 'exceptions.ValueError'>"
+p33
+sS'__unicode__'
+p34
+S'<built-in method __unicode__ of exceptions.ValueError object>'
+p35
+sS'__delattr__'
+p36
+S"<method-wrapper '__delattr__' of exceptions.ValueError object>"
+p37
+sS'__subclasshook__'
+p38
+S'<built-in method __subclasshook__ of type object>'
+p39
+sS'__repr__'
+p40
+S"<method-wrapper '__repr__' of exceptions.ValueError object>"
+p41
+sS'args'
+p42
+S"('unknown url type: asdsad',)"
+p43
+sS'__dict__'
+p44
+S'{}'
+p45
+sS'__sizeof__'
+p46
+S'<built-in method __sizeof__ of exceptions.ValueError object>'
+p47
+sS'__doc__'
+p48
+S"'Inappropriate argument value (of correct type).'"
+p49
+sS'__init__'
+p50
+S"<method-wrapper '__init__' of exceptions.ValueError object>"
+p51
+sS'__new__'
+p52
+S'<built-in method __new__ of type object>'
+p53
+ssS'evalue'
+p54
+S'unknown url type: asdsad'
+p55
+sS'request'
+p56
+cgluon.html
+XML_unpickle
+p57
+(S's\xbe_\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">ajax</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">application</td><td style="vertical-align:top;">:</td><td><div>RedditSim</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">args</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cid</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">client</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">controller</td><td style="vertical-align:top;">:</td><td><div>default</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cookies</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">session_id_admin</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-36960da2-dfea-49fd-8d3b-0431adafb839<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_redditsim</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_welcome</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-3a7eba45-c130-4e77-8bc4-187b1d33a3c4<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">env</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">CONTENT_LENGTH</td><td style="vertical-align:top;">:</td><td><div>684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">CONTENT_TYPE</td><td style="vertical-align:top;">:</td><td><div>multipart/form-data; boundary=---------------------------68871260114331693311366475275</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT</td><td style="vertical-align:top;">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT_ENCODING</td><td style="vertical-align:top;">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_ACCEPT_LANGUAGE</td><td style="vertical-align:top;">:</td><td><div>en-us,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_CONNECTION</td><td style="vertical-align:top;">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_CONTENT_LENGTH</td><td style="vertical-align:top;">:</td><td><div>684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_CONTENT_TYPE</td><td style="vertical-align:top;">:</td><td><div>multipart/form-data; boundary=---------------------------68871260114331693311366475275</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_COOKIE</td><td style="vertical-align:top;">:</td><td><div>session_id_welcome=127.0.0.1-3a7eba45-c130-4e77-8bc4-187b1d33a3c4; session_id_admin=127.0.0.1-36960da2-dfea-49fd-8d3b-0431adafb839; session_id_redditsim=127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_DNT</td><td style="vertical-align:top;">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_HOST</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_REFERER</td><td style="vertical-align:top;">:</td><td><div>http://127.0.0.1:8000/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">HTTP_USER_AGENT</td><td style="vertical-align:top;">:</td><td><div>Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:11.0) Gecko/20100101 Firefox/11.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">PATH_INFO</td><td style="vertical-align:top;">:</td><td><div>/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">QUERY_STRING</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REMOTE_ADDR</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REMOTE_PORT</td><td style="vertical-align:top;">:</td><td><div>37756</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">REQUEST_METHOD</td><td style="vertical-align:top;">:</td><td><div>POST</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SCRIPT_NAME</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_NAME</td><td style="vertical-align:top;">:</td><td><div>kira</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_PORT</td><td style="vertical-align:top;">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_PROTOCOL</td><td style="vertical-align:top;">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">SERVER_SOFTWARE</td><td style="vertical-align:top;">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">app_folders</td><td style="vertical-align:top;">:</td><td><div>set([&#x27;/home/kira111/web2py/applications/RedditSim/&#x27;, &#x27;/home/kira111/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">applications_parent</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_args</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_options</td><td style="vertical-align:top;">:</td><td><div>&lt;Values at 0x90a31ac: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;127.0.1.1&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;kira&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: True, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/home/kira111/web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;import_models&#x27;: False, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;profiler_dir&#x27;: None, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;interfaces&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;asd&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;minthreads&#x27;: None, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">content_length</td><td style="vertical-align:top;">:</td><td><div>684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">content_type</td><td style="vertical-align:top;">:</td><td><div>multipart/form-data; boundary=---------------------------68871260114331693311366475275</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">db_sessions</td><td style="vertical-align:top;">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">debugging</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">gluon_parent</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept</td><td style="vertical-align:top;">:</td><td><div>text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept_encoding</td><td style="vertical-align:top;">:</td><td><div>gzip, deflate</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_accept_language</td><td style="vertical-align:top;">:</td><td><div>en-us,en;q=0.5</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_connection</td><td style="vertical-align:top;">:</td><td><div>keep-alive</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_content_length</td><td style="vertical-align:top;">:</td><td><div>684</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_content_type</td><td style="vertical-align:top;">:</td><td><div>multipart/form-data; boundary=---------------------------68871260114331693311366475275</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_cookie</td><td style="vertical-align:top;">:</td><td><div>session_id_welcome=127.0.0.1-3a7eba45-c130-4e77-8bc4-187b1d33a3c4; session_id_admin=127.0.0.1-36960da2-dfea-49fd-8d3b-0431adafb839; session_id_redditsim=127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_dnt</td><td style="vertical-align:top;">:</td><td><div>1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_host</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1:8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_referer</td><td style="vertical-align:top;">:</td><td><div>http://127.0.0.1:8000/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">http_user_agent</td><td style="vertical-align:top;">:</td><td><div>Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:11.0) Gecko/20100101 Firefox/11.0</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_jython</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_pypy</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_source</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">local_hosts</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>127.0.1.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>kira</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path_info</td><td style="vertical-align:top;">:</td><td><div>/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">query_string</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">remote_addr</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">remote_port</td><td style="vertical-align:top;">:</td><td><div>37756</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">request_method</td><td style="vertical-align:top;">:</td><td><div>POST</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">request_uri</td><td style="vertical-align:top;">:</td><td><div>/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">script_name</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_name</td><td style="vertical-align:top;">:</td><td><div>kira</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_port</td><td style="vertical-align:top;">:</td><td><div>8000</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_protocol</td><td style="vertical-align:top;">:</td><td><div>HTTP/1.1</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">server_software</td><td style="vertical-align:top;">:</td><td><div>Rocket 1.2.6</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_path</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_version</td><td style="vertical-align:top;">:</td><td><div>2.6.0-development+timestamp.2013.08.19.08.43.59</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.errors</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0xb72f70d0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.file_wrapper</td><td style="vertical-align:top;">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x906747c&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.input</td><td style="vertical-align:top;">:</td><td><div>&lt;socket._fileobject object at 0xaf0cc3ac&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.multiprocess</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.multithread</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.run_once</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.url_scheme</td><td style="vertical-align:top;">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi.version</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_errors</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;&lt;stderr&gt;&#x27;, mode &#x27;w&#x27; at 0xb72f70d0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_file_wrapper</td><td style="vertical-align:top;">:</td><td><div>&lt;class wsgiref.util.FileWrapper at 0x906747c&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_input</td><td style="vertical-align:top;">:</td><td><div>&lt;socket._fileobject object at 0xaf0cc3ac&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_multiprocess</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_multithread</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_run_once</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_url_scheme</td><td style="vertical-align:top;">:</td><td><div>http</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi_version</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>1</div></td></tr><tr><td><div>0</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">extension</td><td style="vertical-align:top;">:</td><td><div>html</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">folder</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py/applications/RedditSim/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">function</td><td style="vertical-align:top;">:</td><td><div>posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">global_settings</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">app_folders</td><td style="vertical-align:top;">:</td><td><div>set([&#x27;/home/kira111/web2py/applications/RedditSim/&#x27;, &#x27;/home/kira111/web2py/applications/admin/&#x27;])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">applications_parent</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_args</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cmd_options</td><td style="vertical-align:top;">:</td><td><div>&lt;Values at 0x90a31ac: {&#x27;verbose&#x27;: False, &#x27;ip&#x27;: &#x27;127.0.0.1&#x27;, &#x27;debuglevel&#x27;: 30, &#x27;with_scheduler&#x27;: False, &#x27;ips&#x27;: [&#x27;127.0.1.1&#x27;], &#x27;shutdown_timeout&#x27;: 5, &#x27;taskbar&#x27;: False, &#x27;with_coverage&#x27;: False, &#x27;port&#x27;: 8000, &#x27;maxthreads&#x27;: None, &#x27;softcron&#x27;: False, &#x27;server_name&#x27;: &#x27;kira&#x27;, &#x27;bpython&#x27;: False, &#x27;nogui&#x27;: True, &#x27;pid_filename&#x27;: &#x27;httpserver.pid&#x27;, &#x27;extcron&#x27;: False, &#x27;runcron&#x27;: False, &#x27;run_system_tests&#x27;: False, &#x27;test&#x27;: None, &#x27;folder&#x27;: &#x27;/home/kira111/web2py&#x27;, &#x27;config&#x27;: &#x27;&#x27;, &#x27;import_models&#x27;: False, &#x27;winservice&#x27;: &#x27;&#x27;, &#x27;shell&#x27;: None, &#x27;run&#x27;: &#x27;&#x27;, &#x27;log_filename&#x27;: &#x27;httpserver.log&#x27;, &#x27;profiler_dir&#x27;: None, &#x27;args&#x27;: [&#x27;&#x27;], &#x27;socket_timeout&#x27;: 5, &#x27;ssl_ca_certificate&#x27;: None, &#x27;scheduler&#x27;: None, &#x27;interfaces&#x27;: None, &#x27;ssl_private_key&#x27;: &#x27;&#x27;, &#x27;scheduler_groups&#x27;: None, &#x27;password&#x27;: &#x27;asd&#x27;, &#x27;request_queue_size&#x27;: 5, &#x27;ssl_certificate&#x27;: &#x27;&#x27;, &#x27;cronjob&#x27;: False, &#x27;numthreads&#x27;: None, &#x27;quiet&#x27;: False, &#x27;minthreads&#x27;: None, &#x27;timeout&#x27;: 10, &#x27;plain&#x27;: False, &#x27;nobanner&#x27;: False}&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">db_sessions</td><td style="vertical-align:top;">:</td><td><div>set([])</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">debugging</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">gluon_parent</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_jython</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_pypy</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_source</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">local_hosts</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>127.0.1.1</div></td></tr><tr><td><div>::1</div></td></tr><tr><td><div>kira</div></td></tr><tr><td><div>::ffff:127.0.0.1</div></td></tr><tr><td><div>127.0.0.1</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">web2py_version</td><td style="vertical-align:top;">:</td><td><div>2.6.0-development+timestamp.2013.08.19.08.43.59</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_https</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_local</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">is_restful</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">now</td><td style="vertical-align:top;">:</td><td><div>datetime.datetime(2013, 8, 30, 22, 40, 58, 615756)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">raw_args</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">raw_extension</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">url</td><td style="vertical-align:top;">:</td><td><div>/RedditSim/default/posts</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">utcnow</td><td style="vertical-align:top;">:</td><td><div>datetime.datetime(2013, 8, 30, 17, 10, 58, 615811)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">uuid</td><td style="vertical-align:top;">:</td><td><div>RedditSim/127.0.0.1.2013-08-30.22-40-58.09683bae-1a5f-495f-b160-919f351602b2</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">wsgi</td><td style="vertical-align:top;">:</td><td><div>&lt;gluon.main.LazyWSGI object at 0xae10e48c&gt;</div></td></tr></table></div>'
+tRp58
+sS'frames'
+p59
+(lp60
+(dp61
+S'file'
+p62
+S'/home/kira111/web2py/gluon/restricted.py'
+p63
+sS'dump'
+p64
+(dp65
+S'environment'
+p66
+S"{'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, ...}"
+p67
+sS'ccode'
+p68
+S'<code object <module> at 0xae7b75c0, file "/home...tions/RedditSim/controllers/default.py", line 13>'
+p69
+ssS'lnum'
+p70
+I217
+sS'lines'
+p71
+(dp72
+I212
+S'    try:'
+p73
+sI213
+S'        if isinstance(code, types.CodeType):'
+p74
+sI214
+S'            ccode = code'
+p75
+sI215
+S'        else:'
+p76
+sI216
+S'            ccode = compile2(code, layer)'
+p77
+sI217
+S'        exec ccode in environment'
+p78
+sI218
+S'    except HTTP:'
+p79
+sI219
+S'        raise'
+p80
+sI220
+S'    except RestrictedError:'
+p81
+sI221
+S'        # do not encapsulate (obfuscate) the original RestrictedError'
+p82
+ssS'call'
+p83
+S"(code='# -*- coding: utf-8 -*-\\n# this file is released ...all))\\n\\t\\n\\n\\nresponse._vars=response._caller(posts)\\n', environment={'A': <class 'gluon.html.A'>, 'ANY_OF': <class 'gluon.validators.ANY_OF'>, 'Auth': <class 'gluon.tools.Auth'>, 'B': <class 'gluon.html.B'>, 'BEAUTIFY': <class 'gluon.html.BEAUTIFY'>, 'BODY': <class 'gluon.html.BODY'>, 'BR': <class 'gluon.html.BR'>, 'BUTTON': <class 'gluon.html.BUTTON'>, 'CAT': <class 'gluon.html.CAT'>, 'CENTER': <class 'gluon.html.CENTER'>, ...}, layer='/home/kira111/web2py/applications/RedditSim/controllers/default.py')"
+p84
+sS'func'
+p85
+S'restricted'
+p86
+sa(dp87
+g62
+S'/home/kira111/web2py/applications/RedditSim/controllers/default.py'
+p88
+sg64
+(dp89
+sg70
+I235
+sg71
+(dp90
+I224
+S'def delpost():'
+p91
+sI225
+S'\tdb(db.posts.id==request.args(0,cast=int)).delete()'
+p92
+sI226
+S"\tsession.flash='Post Deleted'"
+p93
+sI227
+S'\tredirect(URL(pedit_all))'
+p94
+sI228
+S'def deluser():'
+p95
+sI229
+S'\tdb(db.auth_user.id==request.args(0,cast=int)).delete()'
+p96
+sI230
+S"\tsession.flash='User Account,Posts,Comments Deleted'"
+p97
+sI231
+S'\tredirect(URL(uedit_all))'
+p98
+sI232
+S''
+sI233
+S''
+ssg83
+S'()'
+p99
+sg85
+S'<module>'
+p100
+sa(dp101
+g62
+S'/home/kira111/web2py/gluon/globals.py'
+p102
+sg64
+(dp103
+S'self'
+p104
+S'undefined'
+p105
+sS'f'
+S'<function posts>'
+p106
+ssg70
+I359
+sg71
+(dp107
+I354
+S'        self.menu = []             # used by the default view layout'
+p108
+sI355
+S'        self.files = []            # used by web2py_ajax.html'
+p109
+sI356
+S'        self.generic_patterns = []  # patterns to allow generic views'
+p110
+sI357
+S"        self.delimiters = ('{{', '}}')"
+p111
+sI358
+S'        self._vars = None'
+p112
+sI359
+S'        self._caller = lambda f: f()'
+p113
+sI360
+S'        self._view_environment = None'
+p114
+sI361
+S'        self._custom_commit = None'
+p115
+sI362
+S'        self._custom_rollback = None'
+p116
+sI363
+S''
+ssg83
+S'(f=<function posts>)'
+p117
+sg85
+S'<lambda>'
+p118
+sa(dp119
+g62
+S'/home/kira111/web2py/gluon/tools.py'
+p120
+sg64
+(dp121
+S'action'
+p122
+S'<function posts>'
+p123
+sS'a'
+S'()'
+p124
+sS'b'
+g45
+ssg70
+I3096
+sg71
+(dp125
+I3091
+S'                    flag = condition'
+p126
+sI3092
+S'                if not flag:'
+p127
+sI3093
+S'                    current.session.flash = self.messages.access_denied'
+p128
+sI3094
+S'                    return call_or_redirect('
+p129
+sI3095
+S'                        self.settings.on_failed_authorization)'
+p130
+sI3096
+S'                return action(*a, **b)'
+p131
+sI3097
+S'            f.__doc__ = action.__doc__'
+p132
+sI3098
+S'            f.__name__ = action.__name__'
+p133
+sI3099
+S'            f.__dict__.update(action.__dict__)'
+p134
+sI3100
+S'            return f'
+p135
+ssg83
+S'(*a=(), **b={})'
+p136
+sg85
+S'f'
+sa(dp137
+g62
+S'/home/kira111/web2py/applications/RedditSim/controllers/default.py'
+p138
+sg64
+(dp139
+S'req'
+p140
+S'<urllib2.Request instance>'
+p141
+sS'global urlopen'
+p142
+S'<function urlopen>'
+p143
+sS'global response'
+p144
+S"<Storage {'body': <cStringIO.StringO object at 0...a> at 0xaec33f44>, 'view': 'default/posts.html'}>"
+p145
+ssg70
+I91
+sg71
+(dp146
+I86
+S'\tform=SQLFORM(db.posts)'
+p147
+sI87
+S''
+sI88
+S'\tif form.process().accepted:'
+p148
+sI89
+S'\t\t\treq = Request(form.vars.url)'
+p149
+sI90
+S'\t\t\ttry:'
+p150
+sI91
+S'\t\t\t\t    response = urlopen(req)'
+p151
+sI92
+S'\t\t\texcept URLError, e:'
+p152
+sI93
+S'\t\t\t\tpost=db(db.posts.id>0).select().last()'
+p153
+sI94
+S'\t\t\t\tdb(db.posts.id==post.id).delete()'
+p154
+sI95
+S"\t\t\t\tresponse.flash = 'INCORRECT URL'"
+p155
+ssg83
+S'()'
+p156
+sg85
+S'posts'
+p157
+sa(dp158
+g62
+S'/usr/lib/python2.7/urllib2.py'
+p159
+sg64
+(dp160
+S'_opener.open'
+p161
+S'<bound method OpenerDirector.open of <urllib2.OpenerDirector instance>>'
+p162
+sS'url'
+p163
+S'<urllib2.Request instance>'
+p164
+sS'data'
+p165
+S'None'
+p166
+sS'global _opener'
+p167
+S'<urllib2.OpenerDirector instance>'
+p168
+sS'timeout'
+p169
+S'<object object>'
+p170
+ssg70
+I126
+sg71
+(dp171
+I128
+S'def install_opener(opener):'
+p172
+sI129
+S'    global _opener'
+p173
+sI130
+S'    _opener = opener'
+p174
+sI121
+S'_opener = None'
+p175
+sI122
+S'def urlopen(url, data=None, timeout=socket._GLOBAL_DEFAULT_TIMEOUT):'
+p176
+sI123
+S'    global _opener'
+p177
+sI124
+S'    if _opener is None:'
+p178
+sI125
+S'        _opener = build_opener()'
+p179
+sI126
+S'    return _opener.open(url, data, timeout)'
+p180
+sI127
+S''
+ssg83
+S'(url=<urllib2.Request instance>, data=None, timeout=<object object>)'
+p181
+sg85
+S'urlopen'
+p182
+sa(dp183
+g62
+S'/usr/lib/python2.7/urllib2.py'
+p184
+sg64
+(dp185
+S'req'
+p186
+S'<urllib2.Request instance>'
+p187
+sS'protocol'
+p188
+g105
+sS'req.get_type'
+p189
+S'<bound method Request.get_type of <urllib2.Request instance>>'
+p190
+ssg70
+I392
+sg71
+(dp191
+I387
+S'            req = fullurl'
+p192
+sI388
+S'            if data is not None:'
+p193
+sI389
+S'                req.add_data(data)'
+p194
+sI390
+S''
+sI391
+S'        req.timeout = timeout'
+p195
+sI392
+S'        protocol = req.get_type()'
+p196
+sI393
+S''
+sI394
+S'        # pre-process request'
+p197
+sI395
+S'        meth_name = protocol+"_request"'
+p198
+sI396
+S'        for processor in self.process_request.get(protocol, []):'
+p199
+ssg83
+S'(self=<urllib2.OpenerDirector instance>, fullurl=<urllib2.Request instance>, data=None, timeout=<object object>)'
+p200
+sg85
+S'open'
+p201
+sa(dp202
+g62
+S'/usr/lib/python2.7/urllib2.py'
+p203
+sg64
+(dp204
+S'self'
+p205
+S'<urllib2.Request instance>'
+p206
+sS'self.__original'
+p207
+g105
+sS'builtinValueError'
+p208
+S"<type 'exceptions.ValueError'>"
+p209
+ssg70
+I254
+sg71
+(dp210
+I256
+S''
+sI257
+S'    def get_host(self):'
+p211
+sI258
+S'        if self.host is None:'
+p212
+sI249
+S''
+sI250
+S'    def get_type(self):'
+p213
+sI251
+S'        if self.type is None:'
+p214
+sI252
+S'            self.type, self.__r_type = splittype(self.__original)'
+p215
+sI253
+S'            if self.type is None:'
+p216
+sI254
+S'                raise ValueError, "unknown url type: %s" % self.__original'
+p217
+sI255
+S'        return self.type'
+p218
+ssg83
+S'(self=<urllib2.Request instance>)'
+p219
+sg85
+S'get_type'
+p220
+sasS'pyver'
+p221
+S'Python 2.7.3: /usr/bin/python (prefix: /usr)'
+p222
+sS'session'
+p223
+g57
+(S's\xe7\x08\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">auth</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">expiration</td><td style="vertical-align:top;">:</td><td><div>3600</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">hmac_key</td><td style="vertical-align:top;">:</td><td><div>a0c3db4c-8922-4cc4-a346-0898accce709</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">last_visit</td><td style="vertical-align:top;">:</td><td><div>datetime.datetime(2013, 8, 30, 22, 40, 47, 482733)</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">remember</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">user</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">country</td><td style="vertical-align:top;">:</td><td><div>india</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">email</td><td style="vertical-align:top;">:</td><td><div>an@gmail.com</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">first_name</td><td style="vertical-align:top;">:</td><td><div>another</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">id</td><td style="vertical-align:top;">:</td><td><div>4L</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">last_name</td><td style="vertical-align:top;">:</td><td><div>user</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">registration_date</td><td style="vertical-align:top;">:</td><td><div>2013-08-30</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">registration_key</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">user_groups</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">4</td><td style="vertical-align:top;">:</td><td><div>user_4</div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">flash</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr></table></div>'
+tRp224
+sS'etype'
+p225
+S"<type 'exceptions.ValueError'>"
+p226
+sS'date'
+p227
+S'Fri Aug 30 22:40:58 2013'
+p228
+sS'response'
+p229
+g57
+(S's\xa4\x1c\x00\x00<div><table><tr><td style="font-weight:bold;vertical-align:top;">body</td><td style="vertical-align:top;">:</td><td><div>&lt;cStringIO.StringO object at 0xae10e9c0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">cookies</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">session_id_redditsim</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33<table><tr><td style="font-weight:bold;vertical-align:top;">comment</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">domain</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">expires</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">httponly</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">max-age</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">path</td><td style="vertical-align:top;">:</td><td><div>/</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">secure</td><td style="vertical-align:top;">:</td><td><div></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">version</td><td style="vertical-align:top;">:</td><td><div></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">delimiters</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>{{</div></td></tr><tr><td><div>}}</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">files</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">flash</td><td style="vertical-align:top;">:</td><td><div>Success!</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">generic_patterns</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>*</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">google_analytics_id</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">headers</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">X-Powered-By</td><td style="vertical-align:top;">:</td><td><div>web2py</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">logo</td><td style="vertical-align:top;">:</td><td><div><a class="brand" data-w2p_disable_with="default" href="/RedditSim/default/index"><b>Reddit<span>SIM</span></b>&trade;&nbsp;</a></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">menu</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div><table><tr><td><div>Home</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/RedditSim/default/index</div></td></tr><tr><td><div><table></table></div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>Categories</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/RedditSim/default/show_cat</div></td></tr><tr><td><div><table></table></div></td></tr></table></div></td></tr><tr><td><div><table><tr><td><div>My Posts</div></td></tr><tr><td><div>False</div></td></tr><tr><td><div>/RedditSim/default/myposts</div></td></tr><tr><td><div><table></table></div></td></tr></table></div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">meta</td><td style="vertical-align:top;">:</td><td><div><table><tr><td style="font-weight:bold;vertical-align:top;">author</td><td style="vertical-align:top;">:</td><td><div>Your Name &lt;you@example.com&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">description</td><td style="vertical-align:top;">:</td><td><div>a cool new app</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">generator</td><td style="vertical-align:top;">:</td><td><div>Web2py Web Framework</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">keywords</td><td style="vertical-align:top;">:</td><td><div>web2py, python, framework</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">models_to_run</td><td style="vertical-align:top;">:</td><td><div><table><tr><td><div>^\\w+\\.py$</div></td></tr><tr><td><div>^default/\\w+\\.py$</div></td></tr><tr><td><div>^default/posts/\\w+\\.py$</div></td></tr></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">postprocessing</td><td style="vertical-align:top;">:</td><td><div><table></table></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_cookie_expires</td><td style="vertical-align:top;">:</td><td><div>None</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_data_name</td><td style="vertical-align:top;">:</td><td><div>session_data_redditsim</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_file</td><td style="vertical-align:top;">:</td><td><div>&lt;open file &#x27;/home/kira111/web2py/applications/RedditSim/sessions/127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33&#x27;, mode &#x27;rb+&#x27; at 0xb1ec25a0&gt;</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_filename</td><td style="vertical-align:top;">:</td><td><div>/home/kira111/web2py/applications/RedditSim/sessions/127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id</td><td style="vertical-align:top;">:</td><td><div>127.0.0.1-19d21ad8-ff7d-4758-abee-01397dff6c33</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_id_name</td><td style="vertical-align:top;">:</td><td><div>session_id_redditsim</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_locked</td><td style="vertical-align:top;">:</td><td><div>True</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_new</td><td style="vertical-align:top;">:</td><td><div>False</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">session_storage_type</td><td style="vertical-align:top;">:</td><td><div>file</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">status</td><td style="vertical-align:top;">:</td><td><div>200</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">subtitle</td><td style="vertical-align:top;">:</td><td><div><a data-w2p_disable_with="default" href="/RedditSim/default/index"><b>READ</b></a><a data-w2p_disable_with="default"> | </a><a data-w2p_disable_with="default" href="/RedditSim/default/index"><b>VOTE</b></a><a data-w2p_disable_with="default"> | </a><a data-w2p_disable_with="default" href="/RedditSim/default/posts"><b>POST</b></a></div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">title</td><td style="vertical-align:top;">:</td><td><div>Redditsim</div></td></tr><tr><td style="font-weight:bold;vertical-align:top;">view</td><td style="vertical-align:top;">:</td><td><div>default/posts.html</div></td></tr></table></div>'
+tRp230
+sS'locals'
+p231
+(dp232
+S'self'
+p233
+S'<urllib2.Request instance>'
+p234
+sssS'traceback'
+p235
+S'Traceback (most recent call last):\n  File "/home/kira111/web2py/gluon/restricted.py", line 217, in restricted\n    exec ccode in environment\n  File "/home/kira111/web2py/applications/RedditSim/controllers/default.py", line 235, in <module>\n  File "/home/kira111/web2py/gluon/globals.py", line 359, in <lambda>\n    self._caller = lambda f: f()\n  File "/home/kira111/web2py/gluon/tools.py", line 3096, in f\n    return action(*a, **b)\n  File "/home/kira111/web2py/applications/RedditSim/controllers/default.py", line 91, in posts\n    response = urlopen(req)\n  File "/usr/lib/python2.7/urllib2.py", line 126, in urlopen\n    return _opener.open(url, data, timeout)\n  File "/usr/lib/python2.7/urllib2.py", line 392, in open\n    protocol = req.get_type()\n  File "/usr/lib/python2.7/urllib2.py", line 254, in get_type\n    raise ValueError, "unknown url type: %s" % self.__original\nValueError: unknown url type: asdsad\n'
+p236
+s.

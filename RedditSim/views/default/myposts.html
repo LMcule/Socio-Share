@@ -1,0 +1,26 @@
+{{extend 'layout.html'}}
+<h1>MY POSTS</h1>
+<style>
+	h3,h4{display:inline;}
+</style>
+<ol>
+{{for some in form:}}
+<li>
+<h3>
+{{=(A(some.title,_href='http://'+some.url))}}
+</h3>
+({{=some.url}})
+&nbsp;
+&nbsp;
+(Total Rating: {{=some.votes}})
+</br>
+<h4>Posted on   </h4>
+{{=some.time_posted}}
+<div style="align: right">
+<button onclick="document.location='{{=URL(r=request,f='delp',args=some.id)}}';">Delete Post</button>
+<button onclick="document.location='{{=URL(r=request,f='editp',args=some.id)}}';">Edit Post</button>
+</div>
+</br>
+</li>
+{{pass}}
+</ol>

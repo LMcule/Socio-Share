@@ -1,0 +1,14 @@
+{{extend 'layout.html'}}
+<h1>ALL CATEGORIES</h1>
+</br>
+{{a=[]}}
+{{for some in form:}}
+{{a.append(some.category)}}
+{{pass}}
+{{a=list(set(a))}}
+{{for i in a:}}
+{{hel=db(db.caty.id==i).select().first()}}
+<h3>
+	{{=LI(A(hel.category_name,_href=URL("post_bycat",args=i)))}}
+</h3>
+{{pass}}

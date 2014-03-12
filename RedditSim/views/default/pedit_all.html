@@ -1,0 +1,41 @@
+{{left_sidebar_enabled,right_sidebar_enabled=False,('message' in globals())}}
+{{extend 'layout.html'}}
+
+<style>
+	li{ margin: 0 0 .01em 0; }
+	h3,h4,button{display:inline;}
+	hr{height=10px;}
+</style>
+<ol>
+{{for some in form:}}
+	<li>	
+<h3>
+{{=(A(some.title,_href='http://'+some.url))}}
+</h3>
+({{=some.url}})
+&nbsp;
+&nbsp;
+(Total Rating: {{=some.votes}})
+</br>
+<h4>Posted on   </h4>
+{{=some.time_posted}}
+{{user=db(db.auth_user.id==some.user_id).select()}}
+<h4>   by   </h4>
+{{=user[0].first_name}}
+	<h4>   in   </h4>
+	{{hel=db(db.caty.id==some.category).select().first()}}
+{{=(hel.category_name)}}
+</br>
+<div style="text-align:right;">
+<button onclick="document.location='{{=URL(r=request,f='delpost',args=some.id)}}';">Delete This Post</button>
+</div>
+</hr>
+</li>
+{{pass}}
+</br>
+</br>
+</br>
+</br>
+</br>
+</ol>
+

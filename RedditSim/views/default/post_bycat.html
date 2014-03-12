@@ -1,0 +1,65 @@
+{{extend 'layout.html'}}
+{{y='youtube'}}
+<style>
+	h3,h4{display:inline;}
+</style>
+{{hel=db(db.caty.id==request.args(0,cast=int)).select().first()}}
+<h1>Category : 
+{{=(hel.category_name)}}
+</h1>
+<ol>
+{{for some in form:}}
+<li>
+<h3>
+{{=(A(some.title,_href='http://'+some.url))}}
+</h3>
+({{=some.url}})
+&nbsp;
+&nbsp;
+(Total Rating: {{=some.votes}})
+</br>
+<h4>Posted on   </h4>
+{{=some.time_posted}}
+{{user=db(db.auth_user.id==some.user_id).select()}}
+<h4>   by   </h4>
+
+{{=user[0].first_name}}
+</br>
+{{if y in some.url:}}
+{{a=some.url.split('=')}}
+{{if(len(a)>1):}}
+{{fin=str(a[len(a)-1])}}
+{{endf="http://www.youtube.com/embed/"+fin}}
+<iframe width="210" height="172"
+	src={{=endf}}>
+</iframe>
+</br>
+{{pass}}
+{{pass}}
+&nbsp;
+{{if auth.user:}}
+{{if auth.user.id!=some.user_id:}}
+{{ano=db((db.liked.post_id==some.id) & (db.liked.user_id==auth.user.id)).select()}}
+{{if(len(ano)==1) and ano[0].response==True:}}
+Liked
+{{else:}}
+{{=(A("Like ",_href=URL('voting',args=[some.id,'1'])))}}
+{{pass}}
+
+{{if(len(ano)==1) and ano[0].response==False:}}
+Disliked
+{{else:}}
+{{=(A("  Dislike",_href=URL('voting',args=[some.id,'-1'])))}}
+{{pass}}
+{{=(A("Comment",_href=URL('post_comet',args=some.id)))}}
+{{else:}}
+{{=(A("Comment",_href=URL('post_comet',args=some.id)))}}
+{{pass}}
+{{else:}}</br>
+{{=(A("  LOG IN",_href=URL('login')))}} TO LIKE/DISLIKE/COMMENT
+
+</br>
+{{pass}}
+{{pass}}
+</li>
+</ol>

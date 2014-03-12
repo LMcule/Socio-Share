@@ -1,0 +1,10 @@
+{{extend 'layout.html'}}
+<div style="text-align:center;">
+<h1 style="text-align:center;">Admin Privileges</h1>
+<style>
+	h3,h4{display:inline;}
+</style>
+<button onclick="document.location='{{=URL(r=request,f='add_caty')}}';">Add Category</button>
+<button onclick="document.location='{{=URL(r=request,f='pedit_all')}}';">Delete Posts</button>
+<button onclick="document.location='{{=URL(r=request,f='uedit_all')}}';">Delete User Accounts</button>
+</div>

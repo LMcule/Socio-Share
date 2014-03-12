@@ -1,0 +1,21 @@
+{{extend 'layout.html'}}
+<h1>EDIT THIS POST</h1>
+</br>
+</br>
+<style>
+	h3,h4{display:inline;}
+</style>
+<div align="center">
+<h3>{{=(A(some.title,_href='http://'+some.url))}}</h3>
+	
+({{=some.url}})
+&nbsp;
+&nbsp;
+(Total Rating: {{=some.votes}})
+</br>
+<h4>Posted on   </h4>
+{{=some.time_posted}}
+</br>
+{{pass}}
+{{=form}}
+</div>
